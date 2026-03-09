@@ -1,49 +1,96 @@
-# garmin-connect-skill
+# Garmin Connect Skill
 
-Cursor / Codex 可用的 Garmin Connect 数据 Skill：按需拉取睡眠、心率、压力、步数、每日摘要等健康数据，支持本地归档与增量同步。
+Fetch sleep, heart rate, stress, steps, and daily summaries from Garmin Connect (connect.garmin.cn). Supports one-off API queries and local archive with incremental sync.
 
-## 依赖
+## What It Does
 
-- Python 3.10+
-- `garminconnect`、`garth`、`requests`
+- **Live queries**: Pull any supported metric for a date or range via Garmin Connect API (sleep, heart rate, stress, steps, body battery, HRV, training status, etc.).
+- **Archive mode**: Initialize a local JSONL archive from a start date, then run daily incremental sync so historical and recent data can be queried without hitting the API every time.
+- **Query from archive**: Filter by date range on local files; supports single metric or “all metrics” for a time point or range.
+
+Works with **Garmin China** (`connect.garmin.cn`) by default; configurable for other regions.
+
+## How to Use
+
+### 1. Install dependencies
 
 ```bash
 pip install garminconnect garth requests
 ```
 
-## 环境变量
+Python 3.10+ required.
 
-- `GARMIN_EMAIL`、`GARMIN_PASSWORD`（必填）
-- `GARMIN_IS_CN`：中国区用 `true`（默认）
-- `GARMINTOKENS`：Token 目录，默认 `~/.garminconnect`
-- `GARMIN_MFA_CODE`：需要 MFA 时填入当次验证码
+### 2. Set credentials (env only; never commit)
 
-复制 `env.example` 为 `.env` 并填入本地值；**切勿将 `.env` 或真实账号密码提交到仓库**（`.gitignore` 已忽略 `.env` 与 `.garminconnect/`）。
+Copy `env.example` to `.env` and fill in your Garmin login. Required:
 
-## 脚本
+- `GARMIN_EMAIL`
+- `GARMIN_PASSWORD`
 
-| 脚本 | 说明 |
-|------|------|
-| `scripts/fetch_garmin_metrics.py` | 按指标/日期拉取 Garmin API，输出归一化 JSON |
-| `scripts/sync_garmin_archive.py` | 初始化或增量同步本地归档（`--mode init` / `incremental`） |
-| `scripts/query_garmin_archive.py` | 从本地归档按日期区间查询（不调 API） |
+Optional: `GARMIN_IS_CN=true` (default), `GARMINTOKENS`, `GARMIN_MFA_CODE` when MFA is needed.
 
-## 文档
+**Do not commit `.env` or real credentials.** `.gitignore` already excludes `.env` and `.garminconnect/`.
 
-- **SKILL.md**：Skill 触发条件与工作流
-- **reference.md**：命令示例、输出约定、归档建议、排错
+### 3. Run scripts
 
-## 使用示例
+| Script | Purpose |
+|--------|--------|
+| `scripts/fetch_garmin_metrics.py` | Fetch one metric (or `--metric all`) for a date/range from Garmin API. |
+| `scripts/sync_garmin_archive.py` | `--mode init` backfill archive; `--mode incremental` daily sync. |
+| `scripts/query_garmin_archive.py` | Query local archive by metric and date range (no API). |
 
+Paths above assume you are in the skill repo root. If the skill lives under Cursor at `.cursor/skills/garmin-connect-data/`, use that path prefix for the same scripts.
+
+## Examples
+
+**Today’s summary (API):**
 ```bash
-# 今日摘要
 python3 scripts/fetch_garmin_metrics.py --metric summary --pretty
+```
 
-# 某天睡眠
+**Sleep for a specific date (API):**
+```bash
 python3 scripts/fetch_garmin_metrics.py --metric sleep --date 2026-03-09 --pretty
+```
 
-# 从归档查本月睡眠
+**All metrics for a date range (API):**
+```bash
+python3 scripts/fetch_garmin_metrics.py --metric all --start-date 2026-03-01 --end-date 2026-03-07 --pretty
+```
+
+**Initialize archive then incremental sync:**
+```bash
+python3 scripts/sync_garmin_archive.py --mode init --archive-dir garmin_archive --start-date 2024-01-01 --pretty
+python3 scripts/sync_garmin_archive.py --mode incremental --archive-dir garmin_archive --pretty
+```
+
+**Query sleep from archive (no API):**
+```bash
 python3 scripts/query_garmin_archive.py --archive-dir garmin_archive --metric sleep --start-date 2026-03-01 --end-date 2026-03-31 --pretty
 ```
 
-将本仓库放入 Cursor 的 `.cursor/skills/` 下即可作为 Skill 使用。
+**All metrics for a date from archive:**
+```bash
+python3 scripts/query_garmin_archive.py --archive-dir garmin_archive --metric all --start-date 2026-03-09 --pretty
+```
+
+## Requirements
+
+- **Runtime**: Python 3.10+, `garminconnect`, `garth`, `requests`.
+- **Credentials**: Garmin account; set `GARMIN_EMAIL` and `GARMIN_PASSWORD` (e.g. via `.env`). For China use `GARMIN_IS_CN=true`.
+- **MFA**: If your account uses MFA, set `GARMIN_MFA_CODE` for the run that performs login.
+- **Network**: HTTPS access to Garmin Connect (connect.garmin.cn or garmin.com).
+
+## Troubleshooting
+
+- **ModuleNotFoundError**: Install deps with `pip install garminconnect garth requests`.
+- **Authentication error**: Check email/password and region (`GARMIN_IS_CN=true` for China).
+- **MFA required**: Set `GARMIN_MFA_CODE` and run again.
+- **Empty or sparse data**: Some metrics are device/account-dependent; the script may return `no_data` or sparse fields instead of failing.
+- **Rate limiting (429)**: Wait and retry; avoid aggressive polling.
+
+See **reference.md** for full env vars, output contract, archive layout, and date handling.
+
+## License
+
+MIT-0. Use, modify, and redistribute freely.

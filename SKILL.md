@@ -1,6 +1,17 @@
 ---
-name: garmin-connect-data
-description: Access Garmin Connect health data such as sleep, heart rate, stress, steps, and daily summaries. Use when the user mentions Garmin, Garmin Connect, connect.garmin.cn, sleep metrics, heart rate, stress, steps, wellness, or health data from a Garmin account.
+name: garmin-connect-skill
+description: Fetch Garmin Connect health data (sleep, heart rate, stress, steps, daily summaries) and optional local archive with incremental sync. Use when the user asks for Garmin/connect.garmin.cn data, 睡眠/心率/压力/步数, or archive init/sync.
+version: 1.0.0
+metadata:
+  openclaw:
+    requires:
+      env:
+        - GARMIN_EMAIL
+        - GARMIN_PASSWORD
+      bins:
+        - python3
+    primaryEnv: GARMIN_EMAIL
+    homepage: https://github.com/xujinyang/garmin-connect-skill
 ---
 
 # Garmin Connect Data
@@ -32,7 +43,7 @@ Optional inputs:
 5. Run the fetch script:
 
 ```bash
-python3 .cursor/skills/garmin-connect-data/scripts/fetch_garmin_metrics.py --metric summary --date 2026-03-09 --pretty
+python3 scripts/fetch_garmin_metrics.py --metric summary --date 2026-03-09 --pretty
 ```
 
 6. Summarize the result in natural language first.
@@ -68,13 +79,13 @@ Use the archive workflow when the user wants all currently available data copied
 Initialization:
 
 ```bash
-python3 .cursor/skills/garmin-connect-data/scripts/sync_garmin_archive.py --mode init --archive-dir garmin_archive --start-date 2024-01-01 --pretty
+python3 scripts/sync_garmin_archive.py --mode init --archive-dir garmin_archive --start-date 2024-01-01 --pretty
 ```
 
 Incremental daily sync:
 
 ```bash
-python3 .cursor/skills/garmin-connect-data/scripts/sync_garmin_archive.py --mode incremental --archive-dir garmin_archive --pretty
+python3 scripts/sync_garmin_archive.py --mode incremental --archive-dir garmin_archive --pretty
 ```
 
 If the user wants "all history" but does not know the first Garmin usage date:
@@ -95,31 +106,31 @@ If the user wants "all history" but does not know the first Garmin usage date:
 Single day:
 
 ```bash
-python3 .cursor/skills/garmin-connect-data/scripts/fetch_garmin_metrics.py --metric sleep --date 2026-03-09 --pretty
+python3 scripts/fetch_garmin_metrics.py --metric sleep --date 2026-03-09 --pretty
 ```
 
 Date range:
 
 ```bash
-python3 .cursor/skills/garmin-connect-data/scripts/fetch_garmin_metrics.py --metric steps --start-date 2026-03-01 --end-date 2026-03-07 --pretty
+python3 scripts/fetch_garmin_metrics.py --metric steps --start-date 2026-03-01 --end-date 2026-03-07 --pretty
 ```
 
 Include raw payloads:
 
 ```bash
-python3 .cursor/skills/garmin-connect-data/scripts/fetch_garmin_metrics.py --metric heart-rate --date 2026-03-09 --include-raw --pretty
+python3 scripts/fetch_garmin_metrics.py --metric heart-rate --date 2026-03-09 --include-raw --pretty
 ```
 
 Advanced metric:
 
 ```bash
-python3 .cursor/skills/garmin-connect-data/scripts/fetch_garmin_metrics.py --metric hrv --date 2026-03-09 --pretty
+python3 scripts/fetch_garmin_metrics.py --metric hrv --date 2026-03-09 --pretty
 ```
 
 Performance metric:
 
 ```bash
-python3 .cursor/skills/garmin-connect-data/scripts/fetch_garmin_metrics.py --metric body-battery --date 2026-03-09 --pretty
+python3 scripts/fetch_garmin_metrics.py --metric body-battery --date 2026-03-09 --pretty
 ```
 
 ## Response Rules
