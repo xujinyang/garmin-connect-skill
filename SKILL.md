@@ -1,158 +1,209 @@
 ---
 name: garmin-connect-skill
-description: Fetch Garmin Connect health data (sleep, heart rate, stress, steps, daily summaries) and optional local archive with incremental sync. Use when the user asks for Garmin/connect.garmin.cn data, 睡眠/心率/压力/步数, or archive init/sync.
-version: 1.0.0
+description: 获取 Garmin Connect 健康数据（睡眠、心率、压力、步数等）和本地归档同步。当用户请求 Garmin 数据、connect.garmin.cn、或提到 睡眠/心率/压力/步数 时使用此技能。
+version: 2.0.0
 metadata:
-  openclaw:
-    requires:
-      env:
-        - GARMIN_EMAIL
-        - GARMIN_PASSWORD
-      bins:
-        - python3
-    primaryEnv: GARMIN_EMAIL
-    homepage: https://github.com/xujinyang/garmin-connect-skill
+  homepage: https://github.com/xujinyang/garmin-connect-skill
 ---
 
-# Garmin Connect Data
+# Garmin Connect 健康数据
 
-## Use This Skill When
+## 使用场景
 
-- The user asks for Garmin health or wellness data.
-- The request mentions `Garmin Connect`, `garmin.cn`, `睡眠`, `心率`, `压力`, `步数`, `健康数据`.
-- The user wants a daily summary or a date-scoped metric from Garmin Connect.
-- The user wants to initialize a Garmin archive, backfill all historical Garmin data, or keep a daily incremental sync.
+当用户提到以下关键词时使用此技能：
+- `Garmin Connect`、`garmin.cn`、`佳明`
+- `睡眠 `、` 心率 `、` 压力`、`步数`、`健康数据`
+- `身体电量 `、`HRV`、` 血氧`、`呼吸率`
 
-## Required Inputs
+## 标准响应流程
 
-- `GARMIN_EMAIL`
-- `GARMIN_PASSWORD`
+### 第一步：响应模板
 
-Optional inputs:
+当用户请求 Garmin 数据时，首先展示可获取的指标列表：
 
-- `GARMINTOKENS`: token directory, default `~/.garminconnect`
-- `GARMIN_IS_CN`: defaults to `true`; keep this for `connect.garmin.cn`
-- `GARMIN_MFA_CODE`: only needed if the account requires MFA during a fresh login
+```
+我可以帮您获取以下 Garmin 健康数据：
 
-## Default Workflow
+【常用指标】
+• 睡眠数据 - 总睡眠时间、入睡/起床时间、睡眠评分
+• 心率 - 静息心率、每日最低/最高心率
+• 压力 - 平均压力值、压力分布
+• 步数 - 总步数、目标完成度、距离、卡路里
+• 身体电量 - 充电/消耗电量、最低/最高水平
+• HRV - 夜间平均值、7 天平均值、基线状态
 
-1. Identify the metric and time range the user wants.
-2. If the user did not specify a date, default to today.
-3. If the user asks vaguely for "today's Garmin data", use `summary`.
-4. If the user asks to initialize or maintain a categorized archive, run the archive sync workflow instead of a single metric query.
-5. Run the fetch script:
+【其他指标】
+• 楼层数、强度分钟数、血氧、呼吸率
+• 体重、血压、健身年龄、训练状态/准备度
+• 比赛预测、骑行 FTP、乳酸阈值
+
+【数据归档】
+• 初始化本地归档 - 拉取所有历史数据到本地，支持后续增量更新
+
+请告诉我您想查看哪个指标？日期是哪天？（不指定则默认为今天）
+```
+
+### 第二步：判断登录状态
+
+运行脚本检测是否有可用 token：
 
 ```bash
 python3 scripts/fetch_garmin_metrics.py --metric summary --date 2026-03-09 --pretty
 ```
 
-6. Summarize the result in natural language first.
-7. Only include raw JSON or large payloads when the user explicitly asks for them.
+**情况 A - 已有 token**：直接返回数据，用自然语言总结关键指标
 
-## Supported Metrics
+**情况 B - 未登录**：脚本会提示输入账号密码
+- 提示：`🔐 未检测到 Garmin 登录信息，请输入账号密码进行登录`
+- 依次输入：邮箱 → 密码 → 验证码（如开启 MFA）
+- 登录成功后显示：`✅ 登录成功！Token 已保存到 ~/.garminconnect/`
+- 后续使用无需重复登录
 
-- `sleep`
-- `heart-rate`
-- `stress`
-- `steps`
-- `floors`
-- `intensity-minutes`
-- `weight`
-- `blood-pressure`
-- `spo2`
-- `respiration`
-- `body-battery`
-- `summary`
-- `hrv`
-- `fitness-age`
-- `training-status`
-- `training-readiness`
-- `race-predictions`
-- `max-metrics`
-- `cycling-ftp`
-- `lactate-threshold`
+### 第三步：返回结果
 
-## Archive Workflows
+- 先说结论（自然语言总结关键数据）
+- 仅在用户明确要求时展示完整 JSON
 
-Use the archive workflow when the user wants all currently available data copied locally and then incrementally updated over time.
+## 支持的指标
 
-Initialization:
+| 指标 | 参数名 | 说明 |
+|------|--------|------|
+| 睡眠 | `sleep` | 总睡眠时间、深浅睡/REM/清醒时长、睡眠评分 |
+| 心率 | `heart-rate` | 静息心率、日最低/最高/平均心率 |
+| 压力 | `stress` | 整体压力水平、最高压力、压力分布 |
+| 步数 | `steps` | 总步数、目标完成度、距离、卡路里 |
+| 身体电量 | `body-battery` | 充电量、消耗量、最低/最高电量 |
+| HRV | `hrv` | 夜间平均 HRV、7 天平均、基线状态 |
+| 每日摘要 | `summary` | 综合当日所有核心指标（推荐默认使用） |
+| 楼层 | `floors` | 上升/下降楼层数 |
+| 强度分钟 | `intensity-minutes` | 中高强度活动分钟数 |
+| 血氧 | `spo2` | 血氧饱和度 |
+| 呼吸率 | `respiration` | 呼吸频率 |
+| 体重 | `weight` | 体重、BMI、体脂率等 |
+| 血压 | `blood-pressure` | 收缩压/舒张压 |
+| 健身年龄 | `fitness-age` | 基于体能评估的"健身年龄" |
+| 训练状态 | `training-status` | 当前训练负荷与状态 |
+| 训练准备度 | `training-readiness` | 今日是否适合训练 |
+| 比赛预测 | `race-predictions` | 各距离跑步成绩预测 |
+| 骑行 FTP | `cycling-ftp` | 骑行功能阈值功率 |
+| 乳酸阈值 | `lactate-threshold` | 乳酸阈值心率/配速 |
+| **初始化归档** | `init-archive` | 首次拉取全部历史数据到本地 |
+
+## 命令示例
+
+### 获取单日数据
 
 ```bash
-python3 scripts/sync_garmin_archive.py --mode init --archive-dir garmin_archive --start-date 2024-01-01 --pretty
+# 今日摘要（默认）
+python3 scripts/fetch_garmin_metrics.py --metric summary --pretty
+
+# 指定日期
+python3 scripts/fetch_garmin_metrics.py --metric sleep --date 2026-03-08 --pretty
+
+# 指定指标和日期
+python3 scripts/fetch_garmin_metrics.py --metric heart-rate --date 2026-03-08 --pretty
 ```
 
-Incremental daily sync:
+### 获取时间段数据
+
+```bash
+# 查询某一周的步数
+python3 scripts/fetch_garmin_metrics.py --metric steps --start-date 2026-03-01 --end-date 2026-03-07 --pretty
+```
+
+### 获取全部指标
+
+```bash
+# 单日所有指标
+python3 scripts/fetch_garmin_metrics.py --metric all --date 2026-03-09 --pretty
+
+# 时间段所有指标
+python3 scripts/fetch_garmin_metrics.py --metric all --start-date 2026-03-01 --end-date 2026-03-07 --pretty
+```
+
+### 初始化本地归档
+
+```bash
+# 指定日期范围
+python3 scripts/fetch_garmin_metrics.py --metric init-archive --start-date 2024-01-01 --end-date 2026-03-09 --archive-dir garmin_archive --pretty
+
+# 自动检测最早日期
+python3 scripts/fetch_garmin_metrics.py --metric init-archive --archive-dir garmin_archive --pretty
+```
+
+### 增量同步归档
 
 ```bash
 python3 scripts/sync_garmin_archive.py --mode incremental --archive-dir garmin_archive --pretty
 ```
 
-If the user wants "all history" but does not know the first Garmin usage date:
+## 归档工作流
 
-- Ask for the approximate first Garmin usage date.
-- If the user does not know it, run `init` without `--start-date`; the script will infer a start date from the earliest activity it can find, then continue from there.
+### 何时使用归档
 
-## Archive Rules
+- 用户希望保留所有历史数据的本地备份
+- 需要离线查询过去的数据
+- 希望避免频繁请求 Garmin API
 
-- Store the archive outside the skill directory, for example in `garmin_archive`.
-- Use `init` only for the first full backfill or when rebuilding the archive.
-- Use `incremental` for later syncs so only new dates are fetched.
-- The archive script maintains `state.json` and categorizes output into `daily`, `advanced`, and `activities`.
-- Keep raw payloads in the archive so the agent can answer future questions from both normalized and original data.
+### 归档结构
 
-## Command Patterns
-
-Single day:
-
-```bash
-python3 scripts/fetch_garmin_metrics.py --metric sleep --date 2026-03-09 --pretty
+```
+garmin_archive/
+├── state.json          # 同步状态记录
+├── daily/              # 每日数据
+│   ├── summary.jsonl
+│   ├── sleep.jsonl
+│   ├── steps.jsonl
+│   └── ...
+├── health/             # 健康指标
+│   ├── weight.jsonl
+│   ├── blood-pressure.jsonl
+│   └── ...
+├── advanced/           # 高级指标
+│   ├── hrv.jsonl
+│   └── fitness-age.jsonl
+├── performance/        # 运动表现
+│   ├── training-status.jsonl
+│   └── ...
+└── activities/         # 运动记录
+    └── activities.jsonl
 ```
 
-Date range:
+### 归档规则
+
+- `init` 模式：仅首次使用，全量回写历史数据
+- `incremental` 模式：后续日常同步，仅获取新日期
+- 归档目录应放在技能目录外，如 `~/garmin_archive`
+- 使用 `state.json` 追踪已同步的最后日期
+
+## 环境变量（可选）
+
+脚本优先使用交互式登录，无需预先配置环境变量。
+
+如需预设，可在 `~/.garminconnect/.env` 配置：
 
 ```bash
-python3 scripts/fetch_garmin_metrics.py --metric steps --start-date 2026-03-01 --end-date 2026-03-07 --pretty
+GARMIN_EMAIL=your-account@example.com
+GARMIN_PASSWORD=your-password
+GARMIN_IS_CN=true          # 中国区账号，默认 true
+GARMINTOKENS=~/.garminconnect
+GARMIN_MFA_CODE=123456     # 仅在需要 MFA 时设置
 ```
 
-Include raw payloads:
+## 响应规则
 
-```bash
-python3 scripts/fetch_garmin_metrics.py --metric heart-rate --date 2026-03-09 --include-raw --pretty
-```
+1. **先说人话**：先用自然语言总结关键数据，再展示 JSON
+2. **睡眠**：强调总时长、入睡/起床时间、睡眠评分
+3. **心率**：强调静息心率、日最低/最高值
+4. **压力**：强调整体压力水平、压力分布
+5. **步数**：强调总步数、目标完成度、距离
+6. **HRV**：强调夜间平均、7 天平均、基线状态
+7. **身体电量**：强调充电量、消耗量
+8. **无数据**：明确告知用户该指标无数据，而非报错
 
-Advanced metric:
+## 安全与可靠性
 
-```bash
-python3 scripts/fetch_garmin_metrics.py --metric hrv --date 2026-03-09 --pretty
-```
-
-Performance metric:
-
-```bash
-python3 scripts/fetch_garmin_metrics.py --metric body-battery --date 2026-03-09 --pretty
-```
-
-## Response Rules
-
-- Lead with the answer the user cares about, not the entire payload.
-- For sleep, highlight total sleep, bed time, wake time, and score when available.
-- For heart rate, highlight resting heart rate and daily min/max when available.
-- For stress, highlight average or overall stress plus notable distribution if present.
-- For steps, highlight total steps, goal completion, distance, and calories when available.
-- For HRV, highlight nightly average, 7-day average, baseline band, and status.
-- For body battery, highlight charged, drained, and min/max level for the day.
-- For race predictions, FTP, and lactate threshold, make it clear these are current performance snapshots and may be stale.
-- If data is unavailable for a metric, say so clearly instead of guessing.
-- If a metric returns `no_data`, tell the user the metric is unsupported for the account, device, or date instead of treating it as an error.
-
-## Safety And Reliability
-
-- Never print or echo credentials back to the user.
-- Reuse token files when possible; avoid repeated fresh logins.
-- If login fails, report whether it is likely due to bad credentials, MFA, rate limiting, or a missing package.
-- Prefer narrow date ranges unless the user explicitly asks for historical data.
-
-## Additional Reference
-
-- See [reference.md](reference.md) for environment variables, date handling, and troubleshooting.
+- 绝不向用户展示完整账号密码
+- 优先复用 token 文件，避免重复登录
+- 登录失败时说明可能原因（密码错误/MFA/限流）
+- 默认使用窄日期范围，除非用户明确要求历史数据

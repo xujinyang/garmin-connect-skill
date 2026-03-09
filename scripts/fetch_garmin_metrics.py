@@ -60,12 +60,18 @@ def parse_args() -> argparse.Namespace:
             "cycling-ftp",
             "lactate-threshold",
             "all",
+            "init-archive",
         ],
-        help="Metric to fetch. Use 'all' to fetch every metric for the given date or range.",
+        help="Metric to fetch. Use 'all' to fetch every metric for the given date or range. Use 'init-archive' to initialize a local archive.",
     )
     parser.add_argument("--date", help="Single date in YYYY-MM-DD format.")
     parser.add_argument("--start-date", help="Start date in YYYY-MM-DD format.")
     parser.add_argument("--end-date", help="End date in YYYY-MM-DD format.")
+    parser.add_argument(
+        "--archive-dir",
+        default="garmin_archive",
+        help="Directory for archive files (only used for init-archive metric).",
+    )
     parser.add_argument(
         "--include-raw",
         action="store_true",
@@ -875,10 +881,16 @@ def authenticate() -> Any:
 
     email = os.getenv("GARMIN_EMAIL")
     password = os.getenv("GARMIN_PASSWORD")
+
+    # Interactive prompt if credentials are not set
     if not email or not password:
-        raise RuntimeError(
-            "Missing GARMIN_EMAIL or GARMIN_PASSWORD. Set them before running this script."
-        )
+        print("\n🔐 未检测到 Garmin 登录信息，请输入账号密码进行登录", file=sys.stderr)
+        email = input("Garmin 账号（邮箱）: ").strip()
+        if not email:
+            raise RuntimeError("GARMIN_EMAIL is required.")
+        password = input("Garmin 密码：").strip()
+        if not password:
+            raise RuntimeError("GARMIN_PASSWORD is required.")
 
     is_cn = env_bool("GARMIN_IS_CN", True)
 
@@ -904,15 +916,20 @@ def authenticate() -> Any:
     if isinstance(login_result, tuple) and login_result and login_result[0] == "needs_mfa":
         mfa_code = os.getenv("GARMIN_MFA_CODE")
         if not mfa_code:
-            raise RuntimeError(
-                "Garmin MFA is required. Set GARMIN_MFA_CODE and run the command again."
-            )
+            # Interactive prompt for MFA code
+            print("\n📱 Garmin 需要双重验证 (MFA)，请输入验证码", file=sys.stderr)
+            mfa_code = input("验证码：").strip()
+            if not mfa_code:
+                raise RuntimeError(
+                    "Garmin MFA is required. Set GARMIN_MFA_CODE or enter the code when prompted."
+                )
         try:
             client.resume_login(login_result[1], mfa_code)
         except Exception as exc:
             raise RuntimeError(f"Garmin MFA verification failed: {exc}") from exc
 
     dump_tokens(client, token_path)
+    print("\n✅ 登录成功！Token 已保存到 ~/.garminconnect/", file=sys.stderr)
     return client
 
 
@@ -1139,6 +1156,51 @@ def main() -> int:
         args = parse_args()
         start_day, end_day = resolve_dates(args)
         client = authenticate()
+
+        # Handle init-archive metric specially by calling sync_garmin_archive.py
+        if args.metric == "init-archive":
+            import subprocess
+
+            print("\n📦 正在初始化 Garmin 本地数据归档...", file=sys.stderr)
+            archive_dir = Path(args.archive_dir).expanduser().resolve()
+            print(f"归档目录：{archive_dir.absolute()}", file=sys.stderr)
+            print(f"日期范围：{start_day.isoformat()} 至 {end_day.isoformat()}", file=sys.stderr)
+            print("\n这可能需要一些时间，请稍候...\n", file=sys.stderr)
+
+            # Build command for sync_garmin_archive.py
+            script_dir = Path(__file__).parent
+            sync_script = script_dir / "sync_garmin_archive.py"
+
+            cmd = [
+                sys.executable,
+                str(sync_script),
+                "--mode", "init",
+                "--archive-dir", str(archive_dir),
+                "--start-date", start_day.isoformat(),
+                "--end-date", end_day.isoformat(),
+            ]
+            if args.pretty:
+                cmd.append("--pretty")
+
+            result = subprocess.run(cmd, capture_output=True, text=True)
+
+            if result.returncode != 0:
+                raise RuntimeError(f"Archive sync failed: {result.stderr}")
+
+            emit({
+                "ok": True,
+                "metric": "init-archive",
+                "archive_dir": str(archive_dir.absolute()),
+                "start_date": start_day.isoformat(),
+                "end_date": end_day.isoformat(),
+                "message": "归档初始化完成",
+                "generated_at": utc_now(),
+                "source": {
+                    "service": "Garmin Connect",
+                    "domain": "garmin.cn" if env_bool("GARMIN_IS_CN", True) else "garmin.com",
+                },
+            }, args.pretty)
+            return 0
 
         if args.metric == "all":
             metrics_items: dict[str, list[dict[str, Any]]] = {}
