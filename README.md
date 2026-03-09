@@ -18,6 +18,8 @@ pip install garminconnect garth requests
 - `GARMINTOKENS`：Token 目录，默认 `~/.garminconnect`
 - `GARMIN_MFA_CODE`：需要 MFA 时填入当次验证码
 
+复制 `env.example` 为 `.env` 并填入本地值；**切勿将 `.env` 或真实账号密码提交到仓库**（`.gitignore` 已忽略 `.env` 与 `.garminconnect/`）。
+
 ## 脚本
 
 | 脚本 | 说明 |
